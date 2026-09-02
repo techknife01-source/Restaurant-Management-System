@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+{% load static %}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Menu | Restro</title>
+<link rel="stylesheet" href="{% static 'restaurant/style.css' %}">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand-block">
+    <div class="brand-mark">R</div>
+    <div>
+      <div class="brand">Restro</div>
+      <div class="brand-subtitle">Fresh kitchen • fast service</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:10px;align-items:center;"><a href="{% url 'records' %}" class="cart-link">📋 Records</a><a href="{% url 'checkout' %}" class="cart-link">
+    <span>🛒</span>
+    <span>Cart</span>
+    <span id="cart-badge">0</span>
+  </a></div>
+
+  <section class="hero-panel">
+    <div class="hero-copy">
+      <p class="eyebrow">Digital ordering module</p>
+      <h1>Order your favorites in seconds.</h1>
+      <p>Explore a polished restaurant menu, build your meal with a few taps, and move smoothly into checkout with a clean, modern flow.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="#menu-section">Explore Menu</a>
+        <a class="btn btn-outline" href="{% url 'checkout' %}">View Cart</a>
+      </div>
+    </div>
+    <div class="hero-card">
+      <h3>Today's highlights</h3>
+      <ul>
+        <li>Chef's special biryani</li>
+        <li>Live cart updates</li>
+        <li>Receipt-ready checkout</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="info-strip">
+    <div class="info-pill">⚡ Fast service</div>
+    <div class="info-pill">🍽️ Dine-in or parcel</div>
+    <div class="info-pill">🧾 Instant receipt</div>
+  </section>
+
+  <section class="restaurant-selector">
+    <div>
+      <p class="eyebrow">Choose restaurant</p>
+      <h2 id="restaurant-name">Spice Garden</h2>
+    </div>
+    <div class="restaurant-options" id="restaurant-options"></div>
+    <div id="restaurant-details" class="restaurant-details"></div>
+  </section>
+
+  <div id="category-tabs" class="category-tabs"></div>
+
+  <section id="menu-section">
+    <div class="section-title">
+      <div>
+        <p class="eyebrow">Menu board</p>
+        <h2>Pick your cravings</h2>
+      </div>
+      <div class="section-note">Veg and non-veg dishes with rich visuals and quick ordering.</div>
+    </div>
+
+    <div class="filter-bar">
+      <input id="search-input" class="search-input" type="search" placeholder="Search dishes, ingredients, categories" oninput="setSearch(this.value)">
+      <div class="filter-pills">
+        <button class="filter-pill active" data-filter="all" onclick="setFilter('all')">All</button>
+        <button class="filter-pill" data-filter="veg" onclick="setFilter('veg')">Veg</button>
+        <button class="filter-pill" data-filter="nonveg" onclick="setFilter('nonveg')">Non-Veg</button>
+        <button class="filter-pill" data-filter="wishlist" onclick="setFilter('wishlist')">Wishlist</button>
+      </div>
+    </div>
+    <div id="menu-container"></div>
+  </section>
+
+<script src="{% static 'restaurant/menu-data.js' %}"></script>
+<script src="{% static 'restaurant/cart.js' %}"></script>
+<script>
+  let currentFilter = "all";
+  let currentCategory = null;
+  let searchQuery = "";
+
+  function setSearch(q) {
+    searchQuery = (q || "").trim().toLowerCase();
+    renderMenu();
+  }
+
+  function setFilter(filter) {
+    currentFilter = filter;
+    renderMenu();
+  }
+
+  function getWishlistIds() {
+    return JSON.parse(localStorage.getItem('restro_wishlist') || '[]');
+  }
+
+  function renderCategoryTabs() {
+    const tabs = document.getElementById('category-tabs');
+    if (!tabs) return;
+    const items = getRestaurantMenuItems();
+    const categories = ['All', ...new Set(items.map(i => i.category))];
+    tabs.innerHTML = categories.map(cat => `
+      <button class="category-pill ${currentCategory === cat ? 'active' : ''}" onclick="setCategory('${cat.replace(/'/g,'\\\'')}')">${cat}</button>
+    `).join('');
+  }
+
+  function setCategory(cat) {
+    currentCategory = cat === 'All' ? null : cat;
+    renderCategoryTabs();
+    renderMenu();
+  }
+
+  function getFilteredItems() {
+    const items = getRestaurantMenuItems();
+    if (currentFilter === "veg") return items.filter(item => item.veg);
+    if (currentFilter === "nonveg") return items.filter(item => !item.veg);
+    if (currentFilter === "wishlist") {
+      const wishlistIds = getWishlistIds();
+      return items.filter(item => wishlistIds.includes(item.id));
+    }
+    let results = items;
+    if (currentCategory) results = results.filter(i => i.category === currentCategory);
+    if (searchQuery) {
+      results = results.filter(i => {
+        const hay = (i.name + ' ' + i.desc + ' ' + i.category).toLowerCase();
+        return hay.includes(searchQuery);
+      });
+    }
+    return results;
+  }
+
+  function updateFilterButtons() {
+    document.querySelectorAll(".filter-pill").forEach(button => {
+      button.classList.toggle("active", button.dataset.filter === currentFilter);
+    });
+  }
+
+  function renderRestaurantSelector() {
+    const container = document.getElementById("restaurant-options");
+    const selected = getSelectedRestaurant();
+
+    container.innerHTML = RESTAURANTS.map(restaurant => `
+      <button class="restaurant-pill ${restaurant.id === selected.id ? 'active' : ''}" onclick="selectRestaurant(${restaurant.id})">
+        <strong>${restaurant.name}</strong>
+        <span>${restaurant.tagline}</span>
+      </button>
+    `).join("");
+
+    document.getElementById("restaurant-name").textContent = selected.name;
+    const detailsEl = document.getElementById('restaurant-details');
+    if (detailsEl) {
+      const cartRestaurant = getCartRestaurantId();
+      const lockNote = cartRestaurant && cartRestaurant !== selected.id
+        ? `<div class="cart-restaurant-note">Cart has items from ${getCartRestaurant().name}. Checkout or empty cart before adding from ${selected.name}.</div>`
+        : "";
+      detailsEl.innerHTML = `
+        <div class="rest-tagline">${selected.tagline}</div>
+        <div class="rest-line">📍 ${selected.address}</div>
+        <div class="rest-line">📞 ${selected.phone} • ⏰ ${selected.hours}</div>
+        ${lockNote}
+      `;
+    }
+  }
+
+  function selectRestaurant(restaurantId) {
+    setSelectedRestaurant(restaurantId);
+    renderRestaurantSelector();
+    renderMenu();
+  }
+
+  function renderMenu() {
+    const filteredItems = getFilteredItems();
+    const wishlistIds = getWishlistIds();
+    const categories = [...new Set(filteredItems.map(i => i.category))];
+    const container = document.getElementById("menu-container");
+
+    container.innerHTML = categories.map(cat => `
+      <div class="category-block">
+        <h2 class="category-title">${cat}</h2>
+        <div class="menu-grid">
+          ${filteredItems.filter(i => i.category === cat).map(item => {
+            const isWishlisted = wishlistIds.includes(item.id);
+            return `
+            <div class="dish-card ${isWishlisted ? 'wishlisted' : ''}">
+              <img src="${item.img}" alt="${item.name}">
+              <div class="dish-body">
+                <div class="dish-name-row">
+                  <span class="${item.veg ? 'veg-dot' : 'nonveg-dot'}"></span>
+                  ${item.name}
+                </div>
+                <div class="dish-desc">${item.desc}</div>
+                <div class="dish-footer">
+                  <span class="price">₹${item.price}</span>
+                  <div class="action-row">
+                    <div id="control-${item.id}"></div>
+                    <button class="btn btn-outline small wishlist-btn ${isWishlisted ? 'wishlist-active' : ''}" onclick="toggleWishlist(${item.id})">${isWishlisted ? '♥ Wishlist' : '♡ Wishlist'}</button>
+                  </div>
+                </div>
+                <div class="extra-box">
+                  <label for="extra-${item.id}">Add extra</label>
+                  <input id="extra-${item.id}" type="text" placeholder="e.g. extra cheese" oninput="saveExtra(${item.id}, this.value)">
+                </div>
+              </div>
+            </div>
+          `}).join("")}
+        </div>
+      </div>
+    `).join("");
+
+    updateFilterButtons();
+    renderCategoryTabs();
+    filteredItems.forEach(item => renderControl(item.id));
+  }
+
+  function renderControl(itemId) {
+    const cart = getCart();
+    const entry = cart[itemId];
+    const qty = (entry && typeof entry === "object") ? entry.qty : (entry || 0);
+    const el = document.getElementById(`control-${itemId}`);
+    if (!el) return;
+
+    if (qty === 0) {
+      if (!canAddItemToCart(itemId)) {
+        el.innerHTML = `<button class="btn btn-outline" disabled title="Only one restaurant can be added to one bill">Cart locked</button>`;
+        return;
+      }
+      el.innerHTML = `<button class="btn btn-primary" onclick="handleAdd(${itemId})">Add to cart</button>`;
+    } else {
+      el.innerHTML = `
+        <div class="qty-control">
+          <button onclick="handleQty(${itemId}, ${qty - 1})">−</button>
+          <span>${qty}</span>
+          <button onclick="handleQty(${itemId}, ${qty + 1})">+</button>
+        </div>`;
+    }
+  }
+
+  function handleAdd(itemId) {
+    const extraInput = document.getElementById(`extra-${itemId}`);
+    const result = addToCart(itemId, 1, extraInput ? extraInput.value : "");
+    if (!result.success) {
+      alert(result.message);
+      renderRestaurantSelector();
+      renderMenu();
+      return;
+    }
+    renderRestaurantSelector();
+    renderControl(itemId);
+  }
+
+  function handleQty(itemId, newQty) {
+    setQuantity(itemId, newQty);
+    renderControl(itemId);
+  }
+
+  function saveExtra(itemId, value) {
+    updateExtra(itemId, value);
+  }
+
+  function getWishlistItems() {
+    const wishlistIds = getWishlistIds();
+    return MENU_ITEMS.filter(item => wishlistIds.includes(item.id));
+  }
+
+  function toggleWishlist(itemId) {
+    const wishlist = getWishlistIds();
+    const isInList = wishlist.includes(itemId);
+    const updated = isInList ? wishlist.filter(id => id !== itemId) : [...wishlist, itemId];
+    localStorage.setItem('restro_wishlist', JSON.stringify(updated));
+    renderMenu();
+    renderWishlist();
+  }
+
+  function renderWishlist() {
+    const panel = document.getElementById('wishlist-panel');
+    const items = getWishlistItems();
+    if (!panel) return;
+
+    if (items.length === 0) {
+      panel.innerHTML = `<div class="wishlist-empty">Your wishlist is empty. Tap the heart button beside Add to cart to save items.</div>`;
+      return;
+    }
+
+    panel.innerHTML = `
+      <div class="wishlist-header">
+        <span>Wishlist</span>
+        <small>${items.length} item${items.length === 1 ? '' : 's'}</small>
+      </div>
+      <div class="wishlist-list">
+        ${items.map(item => `
+          <div class="wishlist-item">
+            <span>${item.name}</span>
+            <button class="btn btn-outline tiny" onclick="toggleWishlist(${item.id})">Remove</button>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  renderRestaurantSelector();
+  renderMenu();
+  renderWishlist();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Restaurant Records</title>
+    <style>
+        :root {
+            --bg: #050505;
+            --surface: rgba(15, 15, 15, 0.94);
+            --surface-border: rgba(255, 135, 0, 0.25);
+            --accent: #ff9800;
+            --accent-strong: #ff6e00;
+            --text: #f7f1e6;
+            --muted: #bdbdbd;
+            --divider: rgba(255, 149, 0, 0.18);
+            --input: rgba(255, 255, 255, 0.05);
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            color: var(--text);
+            background: radial-gradient(circle at 12% 16%, rgba(255, 154, 0, 0.16), transparent 16%),
+                        radial-gradient(circle at 88% 10%, rgba(255, 95, 0, 0.12), transparent 18%),
+                        linear-gradient(180deg, #020202 0%, #080808 45%, #080808 100%);
+        }
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(circle at 20% 18%, rgba(255, 144, 0, 0.08), transparent 18%),
+                        radial-gradient(circle at 78% 72%, rgba(255, 100, 0, 0.08), transparent 15%);
+            pointer-events: none;
+            z-index: 0;
+        }
+        .container {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 100%;
+            margin: 0 auto;
+            padding: 36px 20px 64px;
+        }
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 24px;
+            margin-bottom: 28px;
+            padding: 28px 30px;
+            border: 1px solid rgba(255, 135, 0, 0.16);
+            border-radius: 28px;
+            background: rgba(255,255,255,0.04);
+            box-shadow: 0 24px 60px rgba(0,0,0,0.24);
+        }
+        .topbar .headline {
+            max-width: 720px;
+        }
+        .topbar h1 {
+            margin: 0 0 10px;
+            font-size: clamp(2rem, 3vw, 2.8rem);
+            letter-spacing: -0.03em;
+        }
+        .topbar h1 strong { color: var(--accent); }
+        .topbar p {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.85;
+            font-size: 1rem;
+        }
+        .topbar .status-pill {
+            padding: 12px 18px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 135, 0, 0.22);
+            color: var(--accent);
+            background: rgba(255, 149, 0, 0.08);
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            font-size: 0.78rem;
+        }
+        .records-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 22px;
+            width: 100%;
+        }
+        .card {
+            display: flex;
+            flex-direction: column;
+            justify-content: stretch;
+            min-height: 520px;
+            border-radius: 26px;
+            background: var(--surface);
+            border: 1px solid var(--surface-border);
+            box-shadow: 0 24px 54px rgba(0,0,0,0.26);
+            overflow: hidden;
+        }
+        .card-header {
+            padding: 24px 26px 18px;
+            border-bottom: 1px solid rgba(255, 149, 0, 0.12);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+        }
+        .card-header h2 {
+            margin: 0;
+            font-size: 1rem;
+            color: var(--accent);
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+        .card-header .count {
+            color: var(--text);
+            font-weight: 700;
+            font-size: 0.95rem;
+            opacity: 0.85;
+        }
+        .table-wrap {
+            flex: 1 1 auto;
+            overflow-x: auto;
+            overflow-y: auto;
+            max-height: 420px;
+            min-height: 420px;
+        }
+        .card-header {
+            flex-shrink: 0;
+        }
+        .confirmation-card {
+            width: min(100%, 520px);
+            border-radius: 32px;
+            background: linear-gradient(180deg, rgba(10, 10, 10, 0.97), rgba(20, 20, 20, 0.96));
+            border: 1px solid rgba(255, 184, 0, 0.18);
+            box-shadow: 0 32px 80px rgba(0, 0, 0, 0.48);
+            overflow: hidden;
+            max-height: calc(100vh - 80px);
+        }
+        .confirmation-card .confirmation-details {
+            max-height: 380px;
+            overflow: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 520px;
+        }
+        th, td {
+            padding: 16px 18px;
+            border-bottom: 1px solid rgba(255, 149, 0, 0.12);
+            text-align: left;
+        }
+        th {
+            color: var(--accent);
+            font-size: 0.82rem;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+        td {
+            color: var(--text);
+            font-size: 0.95rem;
+            vertical-align: middle;
+        }
+        tr:last-child td { border-bottom: none; }
+        tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+        .table-note {
+            padding: 18px 20px;
+            color: var(--muted);
+            font-size: 0.95rem;
+            background: rgba(255,255,255,0.03);
+        }
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 14px;
+            padding: 12px 18px;
+            border-radius: 999px;
+            background: rgba(255, 144, 0, 0.12);
+            color: var(--accent);
+            text-decoration: none;
+            font-weight: 700;
+            border: 1px solid rgba(255, 144, 0, 0.2);
+            width: fit-content;
+        }
+        .back-link:hover {
+            background: rgba(255, 144, 0, 0.16);
+        }
+        .generate-bill-button {
+            padding: 10px 16px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 152, 0, 0.2);
+            color: #fff;
+            background: rgba(255, 152, 0, 0.14);
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.2s ease, background 0.2s ease;
+        }
+        .generate-bill-button:hover {
+            background: rgba(255, 152, 0, 0.22);
+            transform: translateY(-1px);
+        }
+        .download-bill-button {
+            padding: 10px 16px;
+            border-radius: 999px;
+            border: 1px solid rgba(46, 189, 100, 0.22);
+            color: #fff;
+            background: rgba(46, 189, 100, 0.14);
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.2s ease, background 0.2s ease;
+        }
+        .download-bill-button:hover {
+            background: rgba(46, 189, 100, 0.22);
+            transform: translateY(-1px);
+        }
+        .confirmation-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(5, 5, 5, 0.82);
+            backdrop-filter: blur(14px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 30px;
+            z-index: 50;
+        }
+        .confirmation-overlay.active {
+            display: flex;
+        }
+        .confirmation-card {
+            width: min(100%, 520px);
+            border-radius: 32px;
+            background: linear-gradient(180deg, rgba(10, 10, 10, 0.97), rgba(20, 20, 20, 0.96));
+            border: 1px solid rgba(255, 184, 0, 0.18);
+            box-shadow: 0 32px 80px rgba(0, 0, 0, 0.48);
+            overflow: hidden;
+        }
+        .confirmation-hero {
+            display: grid;
+            place-items: center;
+            gap: 18px;
+            padding: 32px 28px 24px;
+            background: radial-gradient(circle at top, rgba(255, 164, 0, 0.22), transparent 50%);
+            text-align: center;
+        }
+        .confirmation-hero svg {
+            width: 72px;
+            height: 72px;
+            color: var(--accent);
+        }
+        .confirmation-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 20px;
+            border-radius: 999px;
+            background: rgba(255, 152, 0, 0.14);
+            color: var(--accent);
+            font-weight: 800;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+        }
+        .confirmation-title {
+            margin: 0;
+            font-size: 1.9rem;
+            letter-spacing: -0.04em;
+            color: #fff;
+        }
+        .confirmation-copy {
+            margin: 0;
+            max-width: 420px;
+            color: var(--muted);
+            line-height: 1.9;
+            font-size: 1rem;
+        }
+        .confirmation-details {
+            padding: 24px 28px 28px;
+            display: grid;
+            gap: 16px;
+        }
+        .detail-row {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 10px;
+            align-items: center;
+            padding: 16px 18px;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 149, 0, 0.08);
+        }
+        .detail-row span {
+            color: var(--muted);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+        }
+        .detail-row strong {
+            color: var(--text);
+            font-size: 1rem;
+            font-weight: 700;
+        }
+        .confirmation-close {
+            position: absolute;
+            top: 18px;
+            right: 18px;
+            width: 42px;
+            height: 42px;
+            border: none;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text);
+            font-size: 1.5rem;
+            cursor: pointer;
+            display: grid;
+            place-items: center;
+        }
+        .confirmation-close:hover {
+            background: rgba(255, 255, 255, 0.14);
+        }
+        .confirmation-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 0 26px 26px;
+        }
+        .confirmation-button {
+            flex: 1 1 calc(50% - 6px);
+            min-width: 140px;
+            padding: 16px 18px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 149, 0, 0.18);
+            background: linear-gradient(90deg, rgba(255, 152, 0, 0.15), rgba(255, 152, 0, 0.25));
+            color: #fff;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.2s ease, filter 0.2s ease;
+        }
+        .confirmation-button:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.05);
+        }
+        @media (max-width: 1040px) {
+            .records-grid { grid-template-columns: 1fr; }
+            .topbar { flex-direction: column; }
+        }
+        @media (max-width: 640px) {
+            .topbar { padding: 24px 20px; }
+            .card-header { flex-direction: column; align-items: flex-start; }
+            th, td { padding: 14px 12px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <form id="csrfForm" style="display:none;">
+            {% csrf_token %}
+        </form>
+        <div class="topbar">
+            <div class="headline">
+                <h1><strong>Booking</strong>, Order &amp; Bill Records</h1>
+                <p>A polished overview of table bookings, orders, and billing details in orange-on-black style.</p>
+            </div>
+            <div class="status-pill">Records Overview</div>
+        </div>
+        <div class="records-grid">
+            <section class="card">
+                <div class="card-header">
+                    <h2>Table Booking</h2>
+                    <span class="count">{{ dine_in_bookings|length }} entries</span>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>Customer</th><th>Date</th><th>Time</th><th>Members</th><th>Table</th><th>Action</th></tr>
+                        </thead>
+                        <tbody>
+                        {% for booking in dine_in_bookings %}
+                        <tr>
+                            <td>{{ booking.customer_name }}</td>
+                            <td>{{ booking.booking_date }}</td>
+                            <td>{{ booking.booking_time }}</td>
+                            <td>{{ booking.guest_count }}</td>
+                            <td>{{ booking.table_number }}</td>
+                            <td>
+                                <button class="generate-bill-button" 
+                                    data-booking-id="{{ booking.id }}"
+                                    data-customer="{{ booking.customer_name }}"
+                                    data-date="{{ booking.booking_date }}"
+                                    data-time="{{ booking.booking_time }}"
+                                    data-table="{{ booking.table_number }}"
+                                    data-guests="{{ booking.guest_count }}"
+                                >Generate Bill</button>
+                                <button class="download-bill-button" title="Download or share this bill as a PDF"
+                                    data-booking-id="{{ booking.id }}"
+                                    data-customer="{{ booking.customer_name }}"
+                                    data-date="{{ booking.booking_date }}"
+                                    data-time="{{ booking.booking_time }}"
+                                    data-table="{{ booking.table_number }}"
+                                    data-guests="{{ booking.guest_count }}"
+                                >Download / Share PDF</button>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="6">No dine-in bookings yet.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            <section class="card">
+                <div class="card-header">
+                    <h2>Order for Dine-in</h2>
+                    <span class="count">{{ dine_in_orders|length }} entries</span>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>Table</th><th>Item</th><th>Qty</th><th>Unit Price</th><th>Total</th><th>Action</th></tr>
+                        </thead>
+                        <tbody>
+                        {% for order in dine_in_orders %}
+                        <tr>
+                            <td>{{ order.booking.table_number }}</td>
+                            <td>{{ order.item_name }}</td>
+                            <td>{{ order.quantity }}</td>
+                            <td>{{ order.unit_price }}</td>
+                            <td>{{ order.total_price }}</td>
+                            <td>
+                                <button class="generate-bill-button"
+                                    data-booking-id="{{ order.booking.id }}"
+                                    data-customer="{{ order.booking.customer_name }}"
+                                    data-date="{{ order.booking.booking_date }}"
+                                    data-time="{{ order.booking.booking_time }}"
+                                    data-table="{{ order.booking.table_number }}"
+                                    data-guests="{{ order.booking.guest_count }}"
+                                    data-phone="{{ order.booking.phone }}"
+                                    data-item="{{ order.item_name }}"
+                                    data-qty="{{ order.quantity }}"
+                                >Generate Bill</button>
+                                <button class="download-bill-button" title="Download or share this bill as a PDF"
+                                    data-booking-id="{{ order.booking.id }}"
+                                    data-customer="{{ order.booking.customer_name }}"
+                                    data-date="{{ order.booking.booking_date }}"
+                                    data-time="{{ order.booking.booking_time }}"
+                                    data-table="{{ order.booking.table_number }}"
+                                    data-guests="{{ order.booking.guest_count }}"
+                                    data-phone="{{ order.booking.phone }}"
+                                    data-item="{{ order.item_name }}"
+                                    data-qty="{{ order.quantity }}"
+                                >Download / Share PDF</button>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="6">No dine-in orders yet.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            <section class="card">
+                <div class="card-header">
+                    <h2>Order for Parcel</h2>
+                    <span class="count">{{ parcel_orders|length }} entries</span>
+                </div>
+                <div class="table-note">This section includes delivery address data for parcel orders.</div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>Booking</th><th>Delivery Address</th><th>Phone</th><th>Item</th><th>Qty</th><th>Unit Price</th><th>Total</th><th>Action</th></tr>
+                        </thead>
+                        <tbody>
+                        {% for order in parcel_orders %}
+                        <tr>
+                            <td>{{ order.booking.customer_name }}</td>
+                            <td>{{ order.delivery_address|default:'—' }}</td>
+                            <td>{{ order.booking.phone }}</td>
+                            <td>{{ order.item_name }}</td>
+                            <td>{{ order.quantity }}</td>
+                            <td>{{ order.unit_price }}</td>
+                            <td>{{ order.total_price }}</td>
+                            <td>
+                                <button class="generate-bill-button" 
+                                    data-booking-id="{{ order.booking.id }}"
+                                    data-customer="{{ order.booking.customer_name }}"
+                                    data-date="{{ order.booking.booking_date }}"
+                                    data-time="{{ order.booking.booking_time }}"
+                                    data-table="Order Parcel"
+                                    data-guests="{{ order.booking.guest_count }}"
+                                    data-address="{{ order.delivery_address|default:'—' }}"
+                                    data-phone="{{ order.booking.phone }}"
+                                    data-item="{{ order.item_name }}"
+                                    data-qty="{{ order.quantity }}"
+                                >Generate Bill</button>
+                                <button class="download-bill-button" title="Download or share this bill as a PDF"
+                                    data-booking-id="{{ order.booking.id }}"
+                                    data-customer="{{ order.booking.customer_name }}"
+                                    data-date="{{ order.booking.booking_date }}"
+                                    data-time="{{ order.booking.booking_time }}"
+                                    data-table="Order Parcel"
+                                    data-guests="{{ order.booking.guest_count }}"
+                                    data-address="{{ order.delivery_address|default:'—' }}"
+                                    data-phone="{{ order.booking.phone }}"
+                                    data-item="{{ order.item_name }}"
+                                    data-qty="{{ order.quantity }}"
+                                >Download / Share PDF</button>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="8">No parcel orders yet.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            <section class="card">
+                <div class="card-header">
+                    <h2>Bills</h2>
+                    <span class="count">{{ bills|length }} entries</span>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>Booking</th><th>Service</th><th>Tax</th><th>Grand Total</th><th>Action</th></tr>
+                        </thead>
+                        <tbody>
+                        {% for bill in bills %}
+                        <tr>
+                            <td>{{ bill.booking.customer_name }}</td>
+                            <td>{{ bill.service_charge }}</td>
+                            <td>{{ bill.tax_rate }}%</td>
+                            <td>{{ bill.grand_total }}</td>
+                            <td>
+                                <button class="generate-bill-button"
+                                    data-booking-id="{{ bill.booking.id }}"
+                                    data-customer="{{ bill.booking.customer_name }}"
+                                    data-date="{{ bill.booking.booking_date }}"
+                                    data-time="{{ bill.booking.booking_time }}"
+                                    data-table="{{ bill.booking.table_number }}"
+                                    data-guests="{{ bill.booking.guest_count }}"
+                                    data-phone="{{ bill.booking.phone }}"
+                                >Refresh Bill</button>
+                                <button class="download-bill-button" title="Download or share this bill as a PDF"
+                                    data-customer="{{ bill.booking.customer_name }}"
+                                    data-date="{{ bill.booking.booking_date }}"
+                                    data-time="{{ bill.booking.booking_time }}"
+                                    data-table="{{ bill.booking.table_number }}"
+                                    data-guests="{{ bill.booking.guest_count }}"
+                                    data-phone="{{ bill.booking.phone }}"
+                                    data-service="{{ bill.service_charge }}"
+                                    data-tax="{{ bill.tax_rate }}%"
+                                    data-amount="{{ bill.grand_total }}"
+                                >Download / Share PDF</button>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5">No bills yet.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+        <a class="back-link" href="/">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            Back to booking page
+        </a>
+    </div>
+    <div class="confirmation-overlay" id="confirmationOverlay" aria-hidden="true">
+        <div class="confirmation-card">
+            <button class="confirmation-close" id="confirmationClose" aria-label="Close confirmation">×</button>
+            <div class="confirmation-hero">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2Zm-1 14.414L6.293 12.707l1.414-1.414L11 13.586l5.293-5.293 1.414 1.414L11 16.414Z" fill="currentColor"/></svg>
+                <span class="confirmation-status">Booking Confirmed</span>
+                <h2 class="confirmation-title">Reservation Complete</h2>
+                <p class="confirmation-copy">Your booking has been confirmed and the bill was generated successfully. View the details below.</p>
+            </div>
+            <div class="confirmation-details">
+                <div class="detail-row"><span>Customer</span><strong id="confirmCustomer"></strong></div>
+                <div class="detail-row"><span>Date</span><strong id="confirmDate"></strong></div>
+                <div class="detail-row"><span>Time</span><strong id="confirmTime"></strong></div>
+                <div class="detail-row"><span>Table</span><strong id="confirmTable"></strong></div>
+                <div class="detail-row"><span>Guests</span><strong id="confirmGuests"></strong></div>
+                <div class="detail-row"><span>Delivery Address</span><strong id="confirmAddress"></strong></div>
+                <div class="detail-row"><span>Phone</span><strong id="confirmPhone"></strong></div>
+                <div class="detail-row"><span>Item</span><strong id="confirmItem"></strong></div>
+                <div class="detail-row"><span>Quantity</span><strong id="confirmQty"></strong></div>
+                <div class="detail-row"><span>Service Charge</span><strong id="confirmService"></strong></div>
+                <div class="detail-row"><span>Tax</span><strong id="confirmTax"></strong></div>
+                <div class="detail-row"><span>Bill Total</span><strong id="confirmAmount"></strong></div>
+            </div>
+            <div class="confirmation-actions">
+                <button class="confirmation-button" id="downloadPdfButton">Download PDF</button>
+                <button class="confirmation-button" id="closeConfirmationButton">Close</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        const generateButtons = document.querySelectorAll('.generate-bill-button');
+        const overlay = document.getElementById('confirmationOverlay');
+        const closeOverlay = document.getElementById('confirmationClose');
+        const closeButton = document.getElementById('closeConfirmationButton');
+        const downloadButton = document.getElementById('downloadPdfButton');
+        const confirmCustomer = document.getElementById('confirmCustomer');
+        const confirmDate = document.getElementById('confirmDate');
+        const confirmTime = document.getElementById('confirmTime');
+        const confirmTable = document.getElementById('confirmTable');
+        const confirmGuests = document.getElementById('confirmGuests');
+        const confirmAddress = document.getElementById('confirmAddress');
+        const confirmPhone = document.getElementById('confirmPhone');
+        const confirmItem = document.getElementById('confirmItem');
+        const confirmQty = document.getElementById('confirmQty');
+        const confirmService = document.getElementById('confirmService');
+        const confirmTax = document.getElementById('confirmTax');
+        const confirmAmount = document.getElementById('confirmAmount');
+        const downloadBillButtons = document.querySelectorAll('.download-bill-button');
+
+        let currentBillDetails = null;
+
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            return null;
+        }
+
+        function getCsrfToken() {
+            return document.querySelector('[name=csrfmiddlewaretoken]')?.value || getCookie('csrftoken') || '';
+        }
+
+        function showConfirmation(details) {
+            currentBillDetails = details;
+            confirmCustomer.textContent = details.customer;
+            confirmDate.textContent = details.date;
+            confirmTime.textContent = details.time;
+            confirmTable.textContent = details.table;
+            confirmGuests.textContent = details.guests;
+            confirmAddress.textContent = details.address || '—';
+            confirmPhone.textContent = details.phone || '—';
+            confirmItem.textContent = details.item || '—';
+            confirmQty.textContent = details.qty || '—';
+            confirmService.textContent = details.service;
+            confirmTax.textContent = details.tax;
+            confirmAmount.textContent = details.amount;
+            overlay.classList.add('active');
+            overlay.setAttribute('aria-hidden', 'false');
+        }
+
+        function hideConfirmation() {
+            overlay.classList.remove('active');
+            overlay.setAttribute('aria-hidden', 'true');
+            if (currentBillDetails?.button) {
+                currentBillDetails.button.disabled = false;
+                currentBillDetails.button.textContent = 'Generate Bill';
+            }
+            currentBillDetails = null;
+        }
+
+        function downloadBillPdf(details) {
+            const parcelSection = (details.address || details.phone || details.item || details.qty) ? `
+                        <div class="section">
+                            <div class="section-title">Order Details</div>
+                            <div class="grid">
+                                ${details.address ? `<div class="field"><span>Delivery Address</span><strong>${details.address}</strong></div>` : ''}
+                                ${details.phone ? `<div class="field"><span>Phone</span><strong>${details.phone}</strong></div>` : ''}
+                                ${details.item ? `<div class="field"><span>Item</span><strong>${details.item}</strong></div>` : ''}
+                                ${details.qty ? `<div class="field"><span>Quantity</span><strong>${details.qty}</strong></div>` : ''}
+                            </div>
+                        </div>` : '';
+
+            const invoice = `
+                <html>
+                <head>
+                    <meta charset="utf-8">
+                    <title>Booking Bill - ${details.customer}</title>
+                    <style>
+                        body { margin: 0; font-family: Inter, system-ui, sans-serif; background: #0b0b0b; color: #fff; }
+                        .receipt { width: 100%; max-width: 720px; margin: 0 auto; padding: 32px; box-sizing: border-box; }
+                        .header { text-align: center; padding-bottom: 20px; border-bottom: 1px solid rgba(255,152,0,0.2); }
+                        .header h1 { margin: 0; font-size: 2.2rem; letter-spacing: -0.04em; }
+                        .header p { margin: 10px 0 0; color: #d1c1b4; }
+                        .section { margin-top: 28px; }
+                        .section-title { font-size: 0.78rem; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255, 152, 0, 0.9); margin-bottom: 12px; }
+                        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+                        .field { padding: 16px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,152,0,0.1); border-radius: 18px; }
+                        .field span { display: block; color: #bdb1a5; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px; }
+                        .field strong { display: block; font-size: 1rem; color: #fff; }
+                        .summary { margin-top: 24px; padding: 20px; border-radius: 22px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,152,0,0.12); }
+                        .summary div { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+                        .summary div:last-child { margin-bottom: 0; font-size: 1.1rem; font-weight: 800; color: #fff; }
+                        .summary span { color: #d1c1b4; }
+                        .footer { margin-top: 28px; padding-top: 18px; border-top: 1px solid rgba(255,152,0,0.16); color: #bdb1a5; font-size: 0.88rem; text-align: center; }
+                    </style>
+                </head>
+                <body>
+                    <div class="receipt">
+                        <div class="header">
+                            <h1>Booking Bill</h1>
+                            <p>Customer copy for reservation and billing details.</p>
+                        </div>
+                        <div class="section">
+                            <div class="section-title">Booking Details</div>
+                            <div class="grid">
+                                <div class="field"><span>Customer</span><strong>${details.customer}</strong></div>
+                                <div class="field"><span>Date</span><strong>${details.date}</strong></div>
+                                <div class="field"><span>Time</span><strong>${details.time}</strong></div>
+                                <div class="field"><span>Table</span><strong>${details.table}</strong></div>
+                                <div class="field"><span>Guests</span><strong>${details.guests}</strong></div>
+                            </div>
+                        </div>
+                        ${parcelSection}
+                        <div class="section">
+                            <div class="section-title">Billing Summary</div>
+                            <div class="summary">
+                                <div><span>Service charge</span><strong>${details.service}</strong></div>
+                                <div><span>Tax rate</span><strong>${details.tax}</strong></div>
+                                <div><span>Grand total</span><strong>${details.amount}</strong></div>
+                            </div>
+                        </div>
+                        <div class="footer">Please share this bill copy with your customer for confirmation.</div>
+                    </div>
+                </body>
+                </html>
+            `;
+            const printWindow = window.open('', '_blank');
+            if (!printWindow) return;
+            printWindow.document.write(invoice);
+            printWindow.document.close();
+            printWindow.focus();
+            printWindow.print();
+        }
+
+        generateButtons.forEach(button => {
+            button.addEventListener('click', async () => {
+                const bookingId = button.dataset.bookingId;
+                const details = {
+                    customer: button.dataset.customer,
+                    date: button.dataset.date,
+                    time: button.dataset.time,
+                    table: button.dataset.table,
+                    guests: button.dataset.guests,
+                    address: button.dataset.address,
+                    phone: button.dataset.phone,
+                    item: button.dataset.item,
+                    qty: button.dataset.qty,
+                    service: '—',
+                    tax: '—',
+                    amount: 'Calculating...',
+                    button,
+                };
+
+                button.disabled = true;
+                button.textContent = 'Generating...';
+
+                const response = await fetch(`/api/bookings/${bookingId}/generate_bill/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken(),
+                    },
+                });
+
+                if (!response.ok) {
+                    button.textContent = 'Retry';
+                    button.disabled = false;
+                    return;
+                }
+
+                const payload = await response.json();
+                details.amount = payload.grand_total || 'N/A';
+                details.service = payload.service_charge ? `${payload.service_charge}` : 'N/A';
+                details.tax = payload.tax_rate ? `${payload.tax_rate}%` : 'N/A';
+                button.textContent = 'Generated';
+                showConfirmation(details);
+            });
+        });
+
+        downloadBillButtons.forEach(button => {
+            button.addEventListener('click', async () => {
+                const bookingId = button.dataset.bookingId;
+                const details = {
+                    customer: button.dataset.customer,
+                    date: button.dataset.date,
+                    time: button.dataset.time,
+                    table: button.dataset.table,
+                    guests: button.dataset.guests,
+                    address: button.dataset.address,
+                    phone: button.dataset.phone,
+                    item: button.dataset.item,
+                    qty: button.dataset.qty,
+                    service: button.dataset.service || '—',
+                    tax: button.dataset.tax || '—',
+                    amount: button.dataset.amount,
+                };
+
+                if ((!details.amount || details.amount === 'undefined') && bookingId) {
+                    const response = await fetch(`/api/bookings/${bookingId}/generate_bill/`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken(),
+                        },
+                    });
+                    if (!response.ok) {
+                        alert('Unable to generate the bill for PDF download.');
+                        return;
+                    }
+                    const payload = await response.json();
+                    details.amount = payload.grand_total || 'N/A';
+                    details.service = payload.service_charge ? `${payload.service_charge}` : 'N/A';
+                    details.tax = payload.tax_rate ? `${payload.tax_rate}%` : 'N/A';
+                }
+
+                downloadBillPdf(details);
+            });
+        });
+
+        closeOverlay.addEventListener('click', hideConfirmation);
+        closeButton.addEventListener('click', hideConfirmation);
+        downloadButton.addEventListener('click', () => {
+            if (currentBillDetails) {
+                downloadBillPdf(currentBillDetails);
+            }
+        });
+        overlay.addEventListener('click', event => {
+            if (event.target === overlay) {
+                hideConfirmation();
+            }
+        });
+    </script>
+</body>
+</html>
