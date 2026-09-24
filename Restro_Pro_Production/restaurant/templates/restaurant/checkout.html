@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+{% load static %}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Checkout | Restro</title>
+<link rel="stylesheet" href="{% static 'restaurant/style.css' %}">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand-block">
+    <div class="brand-mark">R</div>
+    <div>
+      <div class="brand">Restro</div>
+      <div class="brand-subtitle">Fresh kitchen • fast service</div>
+    </div>
+  </div>
+  <a href="{% url 'menu' %}" class="cart-link no-print">← Back to menu</a>
+</div>
+
+<div class="page">
+  <div id="order-form-view">
+    <section class="hero-panel compact">
+      <div class="hero-copy">
+        <p class="eyebrow">Checkout</p>
+        <h1>Almost there — confirm your order.</h1>
+        <p>Choose your service mode, add the contact details, and your order will be turned into a polished receipt instantly.</p>
+      </div>
+      <div class="hero-card">
+        <h3>Order flow</h3>
+        <ul>
+          <li>Choose dine-in or parcel</li>
+          <li>Select prepaid or postpaid</li>
+          <li>Print customer + waiter copies</li>
+        </ul>
+      </div>
+    </section>
+
+    <div id="empty-cart-msg" class="empty-state" style="display:none;">
+      Your cart is empty. <a href="{% url 'menu' %}">Go add some dishes →</a>
+    </div>
+
+    <div id="checkout-content" class="checkout-grid">
+      <div class="panel">
+        <h2>Service Details</h2>
+        <div class="form-field">
+          <label for="restaurant-display">Restaurant</label>
+          <input type="text" id="restaurant-display" value="" readonly>
+        </div>
+        <div class="option-group">
+          <div class="option-pill selected" data-group="orderType" data-value="dine-in" onclick="selectOption(this)">🍽️ Dine-in</div>
+          <div class="option-pill" data-group="orderType" data-value="parcel" onclick="selectOption(this)">🥡 Parcel</div>
+        </div>
+
+        <div id="dine-in-fields">
+          <div class="form-field">
+            <label for="table-number">Table Number</label>
+            <input type="text" id="table-number" placeholder="e.g. T-04">
+          </div>
+        </div>
+        <div id="parcel-fields" style="display:none;">
+          <div class="form-field">
+            <label for="customer-phone">Contact Number</label>
+            <input type="tel" id="customer-phone" placeholder="10-digit mobile number">
+          </div>
+          <div class="form-field">
+            <label for="street-name">Street Name</label>
+            <input type="text" id="street-name" placeholder="e.g. Main Road">
+          </div>
+          <div class="form-field">
+            <label for="area-name">Area / Locality</label>
+            <input type="text" id="area-name" placeholder="e.g. Ashok Vihar">
+          </div>
+          <div class="form-field">
+            <label for="pin-code">PIN Code</label>
+            <input type="text" id="pin-code" placeholder="e.g. 110001">
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label for="customer-name">Customer Name</label>
+          <input type="text" id="customer-name" placeholder="Full name">
+        </div>
+
+        <div class="form-field">
+          <label for="special-request">Special Request</label>
+          <textarea id="special-request" rows="3" placeholder="Any special instructions for the kitchen or delivery"></textarea>
+        </div>
+
+        <h2>Payment</h2>
+        <div class="option-group payment-group">
+          <div class="option-pill selected" data-group="payment" data-value="upi" onclick="selectOption(this)">💳 UPI</div>
+          <div class="option-pill" data-group="payment" data-value="card" onclick="selectOption(this)">💳 Card</div>
+          <div class="option-pill" data-group="payment" data-value="cash" onclick="selectOption(this)">💵 Cash</div>
+        </div>
+
+        <div id="payment-interface" class="payment-interface"></div>
+
+        <button class="btn btn-primary" style="width:100%; padding:14px;" onclick="placeOrder()">Place Order</button>
+      </div>
+
+      <div class="panel">
+        <h2>Order Summary</h2>
+        <div id="summary-lines" class="summary-card"></div>
+        <div class="totals-row"><span>Subtotal</span><span id="sum-subtotal">₹0</span></div>
+        <div class="totals-row"><span>Delivery Fee</span><span id="sum-delivery">₹0</span></div>
+        <div class="totals-row"><span>Taxes (5%)</span><span id="sum-tax">₹0</span></div>
+        <div class="totals-row grand"><span>Total</span><span id="sum-total">₹0</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="bill-view" class="bill-wrap">
+    <h1>Order Placed ✅</h1>
+    <p class="no-print">Your order is confirmed. Below are the customer receipt and the restaurant copy for kitchen and billing.</p>
+
+    <div id="order-progress" class="order-progress no-print"></div>
+
+    <div class="receipt" id="customer-bill"></div>
+    <div class="receipt" id="waiter-bill"></div>
+
+    <div class="no-print" style="display:flex; gap:12px; flex-wrap:wrap;">
+      <button class="btn btn-primary" onclick="window.print()">Print Bills</button>
+      <button class="btn btn-outline" onclick="startNewOrder()">Start New Order</button>
+    </div>
+  </div>
+</div>
+
+<script src="{% static 'restaurant/menu-data.js' %}"></script>
+<script src="{% static 'restaurant/cart.js' %}"></script>
+<script>
+  const TAX_RATE = 0.05;
+  let latestOrder = null;
+  let trackerTimers = [];
+  let currentOrderStatus = null;
+  let paymentState = {
+    method: "upi",
+    status: "pending",
+    transactionId: "",
+    amount: 0
+  };
+
+  function selectOption(el) {
+    const group = el.dataset.group;
+    document.querySelectorAll(`.option-pill[data-group="${group}"]`)
+      .forEach(p => p.classList.remove("selected"));
+    el.classList.add("selected");
+
+    if (group === "orderType") {
+      const isDineIn = el.dataset.value === "dine-in";
+      document.getElementById("dine-in-fields").style.display = isDineIn ? "block" : "none";
+      document.getElementById("parcel-fields").style.display = isDineIn ? "none" : "block";
+      renderSummary();
+    }
+
+    if (group === "payment") {
+      paymentState = {
+        method: el.dataset.value,
+        status: el.dataset.value === "cash" ? "counter" : "pending",
+        transactionId: "",
+        amount: 0
+      };
+      renderPaymentInterface();
+    }
+  }
+
+  function getSelected(group) {
+    return document.querySelector(`.option-pill[data-group="${group}"].selected`).dataset.value;
+  }
+
+  function getCheckoutTotal() {
+    const subtotal = getCartTotal();
+    const deliveryFee = getSelected("orderType") === "parcel" ? 15 : 0;
+    const tax = Math.round((subtotal + deliveryFee) * TAX_RATE);
+    return subtotal + deliveryFee + tax;
+  }
+
+  function renderPaymentInterface(total = getCheckoutTotal()) {
+    const panel = document.getElementById("payment-interface");
+    if (!panel) return;
+
+    const method = getSelected("payment");
+    const paymentComplete = isPaymentComplete(total);
+    const statusText = paymentComplete
+      ? `Payment received. Transaction ${paymentState.transactionId}`
+      : method === "cash"
+        ? "Cash will be collected at the counter or during parcel handover."
+        : "Complete the demo payment before placing the order.";
+
+    if (method === "cash") {
+      panel.innerHTML = `
+        <div class="payment-card">
+          <div class="payment-status counter">Pay at counter</div>
+          <p>${statusText}</p>
+        </div>
+      `;
+      return;
+    }
+
+    if (method === "upi") {
+      panel.innerHTML = `
+        <div class="payment-card">
+          <div class="payment-head">
+            <div>
+              <span class="payment-label">UPI Payment</span>
+              <strong>₹${total}</strong>
+            </div>
+            <div class="payment-status ${paymentComplete ? 'paid' : ''}">${paymentComplete ? 'Paid' : 'Pending'}</div>
+          </div>
+          <div class="upi-layout">
+            <div class="qr-box">
+              <div class="qr-grid"></div>
+              <span>Scan to pay</span>
+            </div>
+            <div>
+              <div class="form-field">
+                <label for="upi-id">UPI ID</label>
+                <input type="text" id="upi-id" placeholder="name@bank">
+              </div>
+              <div class="quick-upi">
+                <button type="button" onclick="fillUpi('customer@oksbi')">SBI</button>
+                <button type="button" onclick="fillUpi('customer@okhdfcbank')">HDFC</button>
+                <button type="button" onclick="fillUpi('customer@paytm')">Paytm</button>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-primary payment-btn" onclick="payOnline()">Pay ₹${total}</button>
+          <div id="payment-message" class="payment-message">${statusText}</div>
+        </div>
+      `;
+      return;
+    }
+
+    panel.innerHTML = `
+      <div class="payment-card">
+        <div class="payment-head">
+          <div>
+            <span class="payment-label">Card Payment</span>
+            <strong>₹${total}</strong>
+          </div>
+          <div class="payment-status ${paymentComplete ? 'paid' : ''}">${paymentComplete ? 'Paid' : 'Pending'}</div>
+        </div>
+        <div class="form-field">
+          <label for="card-name">Name on Card</label>
+          <input type="text" id="card-name" placeholder="Cardholder name">
+        </div>
+        <div class="form-field">
+          <label for="card-number">Card Number</label>
+          <input type="text" id="card-number" inputmode="numeric" maxlength="19" placeholder="1234 5678 9012 3456">
+        </div>
+        <div class="card-row">
+          <div class="form-field">
+            <label for="card-expiry">Expiry</label>
+            <input type="text" id="card-expiry" maxlength="5" placeholder="MM/YY">
+          </div>
+          <div class="form-field">
+            <label for="card-cvv">CVV</label>
+            <input type="password" id="card-cvv" inputmode="numeric" maxlength="4" placeholder="123">
+          </div>
+        </div>
+        <button class="btn btn-primary payment-btn" onclick="payOnline()">Pay ₹${total}</button>
+        <div id="payment-message" class="payment-message">${statusText}</div>
+      </div>
+    `;
+  }
+
+  function fillUpi(value) {
+    const upiInput = document.getElementById("upi-id");
+    if (upiInput) upiInput.value = value;
+  }
+
+  function payOnline() {
+    const method = getSelected("payment");
+    const message = document.getElementById("payment-message");
+    const total = getCheckoutTotal();
+    let valid = true;
+
+    if (method === "upi") {
+      const upiId = document.getElementById("upi-id").value.trim();
+      valid = /^[\w.-]+@[\w.-]+$/.test(upiId);
+      if (!valid && message) message.textContent = "Enter a valid UPI ID, like name@bank.";
+    }
+
+    if (method === "card") {
+      const cardName = document.getElementById("card-name").value.trim();
+      const cardNumber = document.getElementById("card-number").value.replace(/\s/g, "");
+      const expiry = document.getElementById("card-expiry").value.trim();
+      const cvv = document.getElementById("card-cvv").value.trim();
+      valid = cardName.length > 2 && /^\d{12,19}$/.test(cardNumber) && /^(0[1-9]|1[0-2])\/\d{2}$/.test(expiry) && /^\d{3,4}$/.test(cvv);
+      if (!valid && message) message.textContent = "Check the card name, number, expiry, and CVV.";
+    }
+
+    if (!valid) return;
+
+    paymentState = {
+      method,
+      status: "paid",
+      transactionId: `TXN${Date.now().toString().slice(-8)}`,
+      amount: total
+    };
+    renderPaymentInterface();
+  }
+
+  function isPaymentComplete(total = getCheckoutTotal()) {
+    const method = getSelected("payment");
+    return paymentState.method === method && paymentState.status === "paid" && paymentState.amount === total;
+  }
+
+  function showPaymentMessage(text) {
+    const message = document.getElementById("payment-message");
+    if (message) message.textContent = text;
+  }
+
+  function renderSummary() {
+    const details = getCartDetails();
+    const container = document.getElementById("checkout-content");
+    const emptyMsg = document.getElementById("empty-cart-msg");
+    const restaurantDisplay = document.getElementById("restaurant-display");
+
+    if (restaurantDisplay) {
+      restaurantDisplay.value = getCartRestaurant().name;
+    }
+
+    if (details.length === 0) {
+      container.style.display = "none";
+      emptyMsg.style.display = "block";
+      return;
+    }
+    container.style.display = "grid";
+    emptyMsg.style.display = "none";
+
+    document.getElementById("summary-lines").innerHTML = details.map(line => `
+      <div class="line-item">
+        <div class="line-item-main">
+          <span>${line.name} × ${line.qty}</span>
+          <span>₹${line.lineTotal}</span>
+        </div>
+        <button class="remove-item-btn" onclick="removeLineItem(${line.id})">Remove</button>
+      </div>
+    `).join("");
+
+    const subtotal = getCartTotal();
+    const deliveryFee = getSelected("orderType") === "parcel" ? 15 : 0;
+    const tax = Math.round((subtotal + deliveryFee) * TAX_RATE);
+    const total = subtotal + deliveryFee + tax;
+
+    document.getElementById("sum-subtotal").textContent = `₹${subtotal}`;
+    document.getElementById("sum-delivery").textContent = `₹${deliveryFee}`;
+    document.getElementById("sum-tax").textContent = `₹${tax}`;
+    document.getElementById("sum-total").textContent = `₹${total}`;
+    renderPaymentInterface(total);
+  }
+
+  function removeLineItem(itemId) {
+    removeFromCart(itemId);
+    renderSummary();
+  }
+
+  function generateOrderId() {
+    const now = new Date();
+    return "ORD" + now.getFullYear() + String(now.getMonth()+1).padStart(2,"0") +
+           String(now.getDate()).padStart(2,"0") + "-" + Math.floor(1000 + Math.random()*9000);
+  }
+
+  async function placeOrder() {
+    const details = getCartDetails();
+    if (details.length === 0) return;
+
+    const orderType = getSelected("orderType");
+    const payment = getSelected("payment");
+    const subtotal = getCartTotal();
+    const deliveryFee = orderType === "parcel" ? 15 : 0;
+    const tax = Math.round((subtotal + deliveryFee) * TAX_RATE);
+    const total = subtotal + deliveryFee + tax;
+    if (payment !== "cash" && !isPaymentComplete(total)) {
+      showPaymentMessage("Complete online payment before placing the order.");
+      return;
+    }
+    const customerName = document.getElementById("customer-name").value || "Guest";
+    const tableNumber = document.getElementById("table-number").value;
+    const phone = document.getElementById("customer-phone").value;
+    const streetName = document.getElementById("street-name").value;
+    const areaName = document.getElementById("area-name").value;
+    const pinCode = document.getElementById("pin-code").value;
+    const parcelAddress = [streetName, areaName, pinCode].filter(Boolean).join(", ");
+    const specialRequest = document.getElementById("special-request").value;
+    const orderId = generateOrderId();
+    const now = new Date().toLocaleString();
+
+    const estimatedPrepMinutes = calculateEstimatedPrepMinutes(details, orderType);
+    const readyAt = new Date(Date.now() + estimatedPrepMinutes * 60000).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+
+    const order = {
+      orderId, orderType, payment, customerName, tableNumber, phone, parcelAddress, specialRequest,
+      paymentStatus: payment === "cash" ? "due" : "paid",
+      transactionId: paymentState.transactionId,
+      items: details, subtotal, deliveryFee, tax, total, timestamp: now, estimatedPrepMinutes, readyAt
+    };
+    latestOrder = order;
+
+    // Persist booking and order data in the Django backend.
+    try {
+      const nowDate = new Date();
+      const pad = n => String(n).padStart(2, "0");
+      const bookingPayload = {
+        customer_name: customerName,
+        phone: phone || "0000000000",
+        booking_date: `${nowDate.getFullYear()}-${pad(nowDate.getMonth()+1)}-${pad(nowDate.getDate())}`,
+        booking_time: `${pad(nowDate.getHours())}:${pad(nowDate.getMinutes())}:00`,
+        guest_count: 1,
+        table_number: Math.min(8, Math.max(1, parseInt((tableNumber || "1").replace(/\D/g, "")) || 1)),
+        special_request: specialRequest
+      };
+      const bookingResponse = await fetch("/api/bookings/", {
+        method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(bookingPayload)
+      });
+      if (!bookingResponse.ok) throw new Error("Booking could not be saved");
+      const booking = await bookingResponse.json();
+      for (const item of details) {
+        const orderResponse = await fetch("/api/orders/", {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({
+            booking: booking.id, order_type: orderType === "parcel" ? "PARCEL" : "DINE_IN",
+            delivery_address: parcelAddress, item_name: item.name, quantity: item.qty, unit_price: item.price
+          })
+        });
+        if (!orderResponse.ok) throw new Error("Order could not be saved");
+      }
+    } catch (backendError) {
+      console.error(backendError);
+      alert("The order was prepared, but the server could not save it. Please check the backend connection.");
+    }
+
+    renderBills(order);
+    renderOrderProgress(order, "received");
+    startOrderTracker(order);
+
+    document.getElementById("order-form-view").style.display = "none";
+    document.getElementById("bill-view").classList.add("show");
+    clearCart();
+    showThankYouMessage();
+  }
+
+  function showThankYouMessage() {
+    const billView = document.getElementById("bill-view");
+    const heading = billView.querySelector("h1");
+    if (heading) {
+      heading.innerHTML = "Thank You! 🎉";
+    }
+  }
+
+  function renderBills(order) {
+    const itemRows = order.items.map(i => `
+      <div class="rline"><span>${i.name} × ${i.qty}</span><span>₹${i.lineTotal}</span></div>
+    `).join("");
+
+    const infoLine = order.orderType === "dine-in"
+      ? `Table: ${order.tableNumber || "—"}`
+      : `Parcel • Phone: ${order.phone || "—"} • Address: ${order.parcelAddress || "—"}`;
+    const paymentLine = order.payment === "cash"
+      ? "Cash payment due"
+      : `${order.payment.toUpperCase()} paid • ${order.transactionId}`;
+
+    document.getElementById("customer-bill").innerHTML = `
+      <span class="tag">Customer Receipt</span>
+      <h3>${getCartRestaurant().name}</h3>
+      <p style="margin:0 0 14px 0; color:rgba(28,26,23,0.65);">
+        Order ${order.orderId} • ${order.timestamp}<br>
+        ${customerLabel(order)} • ${infoLine} • ${paymentLine}<br>
+        Special Request: ${order.specialRequest || "None"}
+      </p>
+      ${itemRows}
+      <div class="rline"><span>Estimated Ready Time</span><span>${order.estimatedPrepMinutes} min (${order.readyAt})</span></div>
+      <div class="rline"><span>Delivery Fee</span><span>₹${order.deliveryFee || 0}</span></div>
+      <div class="rline"><span>Tax</span><span>₹${order.tax || 0}</span></div>
+      <div class="rtotal"><span>Total Paid</span><span>₹${order.total}</span></div>
+    `;
+
+    document.getElementById("waiter-bill").innerHTML = `
+      <span class="tag">Restaurant Copy</span>
+      <h3>${getCartRestaurant().name} — Kitchen &amp; Billing</h3>
+      <p style="margin:0 0 14px 0; color:rgba(28,26,23,0.65);">
+        Order ${order.orderId} • ${order.timestamp}<br>
+        ${customerLabel(order)} • ${infoLine} • Payment status: <strong>${order.payment === 'cash' ? 'PAY AT COUNTER' : 'PAID'}</strong><br>
+        ${order.transactionId ? `Transaction: ${order.transactionId}<br>` : ""}
+        Special Request: ${order.specialRequest || "None"}
+      </p>
+      ${itemRows}
+      <div class="rline"><span>Estimated Prep Time</span><span>${order.estimatedPrepMinutes} min</span></div>
+      <div class="rline"><span>Delivery Fee</span><span>₹${order.deliveryFee || 0}</span></div>
+      <div class="rline"><span>Tax</span><span>₹${order.tax || 0}</span></div>
+      <div class="rtotal"><span>Amount to Collect</span><span>₹${order.payment === 'cash' ? order.total : 0}</span></div>
+    `;
+  }
+
+  function calculateEstimatedPrepMinutes(items, orderType) {
+    const itemCount = items.reduce((sum, item) => sum + item.qty, 0);
+    const hasMainDish = items.some(item => /biryani|pizza|chicken|paneer|curry|kofta|prawns/i.test(item.name));
+    let minutes = 12 + itemCount * 3;
+    if (hasMainDish) minutes += 6;
+    if (orderType === "parcel") minutes += 5;
+    return Math.min(Math.max(minutes, 15), 45);
+  }
+
+  function getOrderSteps(order) {
+    return [
+      { key: "received", label: "Order received", detail: "Kitchen has the order" },
+      { key: "preparing", label: "Preparing", detail: "Freshly cooking now" },
+      {
+        key: "ready",
+        label: order.orderType === "parcel" ? "Ready for parcel" : "Ready to serve",
+        detail: `Estimated by ${order.readyAt}`
+      },
+      { key: "completed", label: "Completed", detail: "Order closed" }
+    ];
+  }
+
+  function renderOrderProgress(order, currentStatus) {
+    const panel = document.getElementById("order-progress");
+    if (!panel) return;
+
+    currentOrderStatus = currentStatus;
+    const steps = getOrderSteps(order);
+    const activeIndex = steps.findIndex(step => step.key === currentStatus);
+
+    panel.innerHTML = `
+      <div class="prep-card">
+        <span class="tag">Estimated Preparation</span>
+        <strong>${order.estimatedPrepMinutes} minutes</strong>
+        <small>Ready around ${order.readyAt}</small>
+      </div>
+      <div class="status-card">
+        <div class="status-header">
+          <div>
+            <span class="tag">Order Status</span>
+            <h2>${steps[activeIndex].label}</h2>
+          </div>
+          <button class="btn btn-outline small" onclick="markOrderCompleted()">Mark Completed</button>
+        </div>
+        <div class="status-steps">
+          ${steps.map((step, index) => `
+            <div class="status-step ${index <= activeIndex ? 'active' : ''}">
+              <div class="status-dot">${index + 1}</div>
+              <div>
+                <strong>${step.label}</strong>
+                <span>${step.detail}</span>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  function startOrderTracker(order) {
+    trackerTimers.forEach(timer => clearTimeout(timer));
+    trackerTimers = [
+      setTimeout(() => {
+        if (currentOrderStatus !== "completed") renderOrderProgress(order, "preparing");
+      }, 2000),
+      setTimeout(() => {
+        if (currentOrderStatus !== "completed") renderOrderProgress(order, "ready");
+      }, 7000)
+    ];
+  }
+
+  function markOrderCompleted() {
+    trackerTimers.forEach(timer => clearTimeout(timer));
+    trackerTimers = [];
+    if (latestOrder) renderOrderProgress(latestOrder, "completed");
+  }
+
+  function customerLabel(order) {
+    return `${order.customerName}`;
+  }
+
+  function startNewOrder() {
+    window.location.href = "{% url 'menu' %}";
+  }
+
+  renderSummary();
+</script>
+
+</body>
+</html>
