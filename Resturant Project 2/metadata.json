@@ -1,0 +1,6 @@
+{
+  "name": "Saffron & Thyme - Artisanal Bistro & Dining",
+  "description": "Artisanal bistro dining experience with seasonal menus, table reservation, dine-in & parcel ordering, live bill generation, and kitchen management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
